@@ -1,95 +1,129 @@
 import streamlit as st
 import pandas as pd
 import yfinance as yf
-import pandas_ta as ta
 from concurrent.futures import ThreadPoolExecutor
+from streamlit_autorefresh import st_autorefresh
 from datetime import datetime
 
-# Page Config
-st.set_page_config(page_title="Ultra Master Terminal", layout="wide")
+# Page Configuration
+st.set_page_config(page_title="Ultra Pro Max - Final Scanner", layout="wide")
+st_autorefresh(interval=60000, key="final_scanner_refresh")
 
-# CSS Styling
+# Custom CSS for Professional UI
 st.markdown("""
 <style>
-    .stApp { background-color: #0d1117; color: white; }
-    .main-header { 
-        background: linear-gradient(90deg, #1e3a8a, #1e1b4b); 
-        padding: 25px; border-radius: 15px; 
-        text-align: center; border-bottom: 4px solid #3b82f6; 
-        margin-bottom: 20px;
-    }
-    .metric-box { background: #161b22; padding: 20px; border-radius: 12px; border: 1px solid #30363d; }
+    .header {background: linear-gradient(135deg, #0f172a, #1e40af); padding: 20px; border-radius: 12px; color: white; text-align: center;}
+    .section {padding: 10px; border-radius: 8px; color: white; font-weight: bold; text-align: center; margin-bottom: 8px;}
+    .blue {background: #2563eb;} .green {background: #16a34a;} .purple {background: #9333ea;} 
+    .orange {background: #f97316;} .cyan {background: #0891b2;} .dark-red {background: #991b1b;}
 </style>
 """, unsafe_allow_html=True)
 
-# Analysis Logic
-def master_analyzer(symbol):
+st.markdown('<div class="header"><h1>Smart Scanner Ultra Pro Max</h1><p>Full Analysis: Breakouts | Momentum | CPR | Near-BO</p></div>', unsafe_allow_html=True)
+
+# Nifty 200/500 Stocks List (Expand as needed)
+symbols = [
+    "ABB.NS", "ACC.NS", "ADANIENT.NS", "ADANIPORTS.NS", "ADANIPOWER.NS", "AMBUJACEM.NS", "APOLLOHOSP.NS", "ASIANPAINT.NS", "AXISBANK.NS", "BAJAJ-AUTO.NS",
+    "BAJFINANCE.NS", "BAJAJFINSV.NS", "BANKBARODA.NS", "BEL.NS", "BHARTIARTL.NS", "BPCL.NS", "BRITANNIA.NS", "CANBK.NS", "CIPLA.NS", "COALINDIA.NS",
+    "DLF.NS", "DABUR.NS", "DIVISLAB.NS", "DRREDDY.NS", "EICHERMOT.NS", "GAIL.NS", "GRASIM.NS", "HCLTECH.NS", "HDFCBANK.NS", "HDFCLIFE.NS",
+    "HEROMOTOCO.NS", "HINDALCO.NS", "HINDUNILVR.NS", "ICICIBANK.NS", "ITC.NS", "INDUSINDBK.NS", "INFY.NS", "JSWSTEEL.NS", "KOTAKBANK.NS", "LT.NS",
+    "M&M.NS", "MARUTI.NS", "NTPC.NS", "NESTLEIND.NS", "ONGC.NS", "POWERGRID.NS", "RELIANCE.NS", "SBILIFE.NS", "SBIN.NS", "SUNPHARMA.NS",
+    "TATACONSUM.NS", "TATAMOTORS.NS", "TATASTEEL.NS", "TCS.NS", "TECHM.NS", "TITAN.NS", "ULTRACEMCO.NS", "WIPRO.NS", "ZOMATO.NS", "TRENT.NS",
+    "RVNL.NS", "IRFC.NS", "PFC.NS", "RECLTD.NS", "MAZDOCK.NS", "BHEL.NS", "HUDCO.NS", "COFORGE.NS", "PERSISTENT.NS", "DIXON.NS", "MANAPPURAM.NS", "FORTIS.NS"
+]
+
+def analyze_stock(symbol):
     try:
-        ticker = f"{symbol}.NS"
-        df = yf.download(ticker, period="1y", interval="1d", progress=False)
-        if len(df) < 50: return None
-
-        ltp = round(df['Close'].iloc[-1], 2)
-        prev_close = df['Close'].iloc[-2]
-        change = round(((ltp - prev_close) / prev_close) * 100, 2)
-        rsi = round(ta.rsi(df['Close'], length=14).iloc[-1], 2)
-        ema_200 = ta.ema(df['Close'], length=200).iloc[-1]
-        bb = ta.bbands(df['Close'], length=20, std=2)
-        upper_bb = bb['BBU_20_2.0'].iloc[-1]
-        vol_ratio = round(df['Volume'].iloc[-1] / df['Volume'].tail(10).mean(), 2)
-
-        category = "Wait"
-        if ltp > upper_bb and vol_ratio > 1.5 and rsi > 60:
-            category = "🚀 Breakout"
-        elif ltp > ema_200 and rsi > 55:
-            category = "📈 Swing Buy"
-        elif rsi > 70:
-            category = "🔥 Momentum"
-        elif ltp < ema_200:
-            category = "🔴 Avoid"
-
+        ticker = yf.Ticker(symbol)
+        df_hist = ticker.history(period="1y", interval="1d")
+        if len(df_hist) < 20: return None
+        
+        last = df_hist.iloc[-1]
+        prev = df_hist.iloc[-2]
+        
+        # 1. Formatting LTP (2 Decimal Points)
+        ltp = round(last['Close'], 2)
+        change = round(((last['Close'] - prev['Close']) / prev['Close']) * 100, 2)
+        
+        # 2. Volume Spike (🚨)
+        avg_vol = df_hist['Volume'].iloc[-6:-1].mean()
+        vol_ratio = round(last['Volume'] / avg_vol, 2)
+        
+        # 3. Breakout Logic (1W & 52WH)
+        high_1w = round(df_hist['High'].iloc[-6:-1].max(), 2)
+        high_52w = round(df_hist['High'].iloc[:-1].max(), 2)
+        pdh = round(prev['High'], 2) # Prev Day High
+        
+        # 4. Distance for Near Breakout
+        dist_52w = round(((high_52w - ltp) / high_52w) * 100, 2)
+        
+        # 5. CPR Width Details
+        h, l, c = prev['High'], prev['Low'], prev['Close']
+        pivot = (h + l + c) / 3
+        bc = (h + l) / 2
+        tc = (pivot - bc) + pivot
+        cpr_w = round(abs(tc - bc) / pivot * 100, 3)
+        
+        flash = "⚡ HIGH" if abs(change) > 2.0 else "Normal"
+        name = symbol.replace(".NS", "")
+        display_name = f"🚨 {name}" if vol_ratio > 2.5 else name
+        
         return {
-            "Stock": symbol,
+            "Stock": display_name,
             "LTP": ltp,
-            "Change%": change,
-            "RSI": rsi,
+            "%Chg": change,
+            "Flash": flash,
+            "CPR_Width": cpr_w,
+            "Prev_BO": "✅" if ltp > pdh else "❌",
+            "1W_High": high_1w,
+            "Dist_52W": dist_52w,
             "Vol_Ratio": vol_ratio,
-            "Category": category,
-            "Chart": f"https://www.tradingview.com/chart/?symbol=NSE:{symbol}"
+            "View": f"https://www.tradingview.com/chart/?symbol=NSE:{name}"
         }
     except: return None
 
-# UI Header
-st.markdown("<div class='main-header'><h1>🎯 ULTRA MASTER SCANNER</h1><p>Live Market Analytics Dashboard</p></div>", unsafe_allow_html=True)
+# Parallel Scanner Execution
+with st.spinner("Analyzing Market Data..."):
+    with ThreadPoolExecutor(max_workers=100) as executor:
+        results = [r for r in list(executor.map(analyze_stock, symbols)) if r]
 
-# Sidebar
-with st.sidebar:
-    st.header("Settings")
-    stock_list = ["RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK", "SBIN", "ZOMATO", "RVNL", "IRFC", "TATASTEEL", "TITAN", "BHEL", "PNB"]
-    selected_stocks = st.multiselect("Select Stocks", stock_list, default=stock_list)
-    run_btn = st.button("🚀 RUN LIVE SCAN")
+if results:
+    df = pd.DataFrame(results)
+    st.info(f"🕒 Update: {datetime.now().strftime('%I:%M:%S %p')} | 🚨 = Volume Spike | ✅ = PDH Breakout")
 
-if run_btn:
-    with st.spinner("Analyzing Stocks..."):
-        with ThreadPoolExecutor(max_workers=20) as executor:
-            results = list(executor.map(master_analyzer, selected_stocks))
-        
-        final_data = [r for r in results if r]
-        if final_data:
-            df = pd.DataFrame(final_data)
-            
-            # Metrics
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Scanned", f"{len(df)} Stocks")
-            c2.metric("Breakouts", len(df[df['Category'] == "🚀 Breakout"]))
-            c3.metric("Swing", len(df[df['Category'] == "📈 Swing Buy"]))
+    def style_status(val):
+        if val == '⚡ HIGH': return 'background-color: #16a34a; color: white; font-weight: bold;'
+        return ''
 
-            # Tabs
-            t1, t2, t3 = st.tabs(["🚀 Breakouts", "📈 Swing Picks", "📊 All Data"])
-            with t1: st.table(df[df['Category'] == "🚀 Breakout"])
-            with t2: st.table(df[df['Category'] == "📈 Swing Buy"])
-            with t3: st.dataframe(df, use_container_width=True)
-            
-            st.success(f"Last Update: {datetime.now().strftime('%H:%M:%S')}")
+    col_cfg = {"View": st.column_config.LinkColumn("Chart")}
+    
+    # --- Row 1: Breakouts ---
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown('<div class="section purple">🚀 52W High & PDH Breakout</div>', unsafe_allow_html=True)
+        bo_df = df[df["Prev_BO"] == "✅"].sort_values("%Chg", ascending=False).head(10)
+        st.dataframe(bo_df[["Stock", "LTP", "%Chg", "Prev_BO", "View"]], column_config=col_cfg, use_container_width=True, hide_index=True)
 
-st.caption("Developed by Ashraf Manjeri")
+    with c2:
+        st.markdown('<div class="section cyan">📈 1 Week High Breakout</div>', unsafe_allow_html=True)
+        w1_df = df[df["LTP"] > df["1W_High"]].sort_values("%Chg", ascending=False).head(10)
+        st.dataframe(w1_df[["Stock", "LTP", "%Chg", "1W_High", "View"]], column_config=col_cfg, use_container_width=True, hide_index=True)
+
+    # --- Row 2: Near Breakout & CPR ---
+    c3, c4 = st.columns(2)
+    with c3:
+        st.markdown('<div class="section orange">🔥 Near Breakout (Watching)</div>', unsafe_allow_html=True)
+        near_df = df[(df["Dist_52W"] > 0) & (df["Dist_52W"] < 1.5)].sort_values("Dist_52W").head(10)
+        st.dataframe(near_df[["Stock", "LTP", "Dist_52W", "View"]], column_config=col_cfg, use_container_width=True, hide_index=True)
+
+    with c4:
+        st.markdown('<div class="section blue">🎯 Narrow CPR (Trending)</div>', unsafe_allow_html=True)
+        narrow_df = df.sort_values("CPR_Width").head(10)
+        st.dataframe(narrow_df[["Stock", "LTP", "CPR_Width", "%Chg", "View"]], column_config=col_cfg, use_container_width=True, hide_index=True)
+
+    # --- Full Momentum Table ---
+    st.markdown("---")
+    st.markdown('<div class="section green">🔥 Active Momentum & Volume Spikes</div>', unsafe_allow_html=True)
+    momentum_df = df.sort_values(by=["%Chg", "Vol_Ratio"], ascending=False).head(20)
+    st.dataframe(momentum_df[["Stock", "LTP", "%Chg", "Vol_Ratio", "Flash", "View"]].style.map(style_status, subset=['Flash']), 
+                 column_config=col_cfg, use_container_width=True, hide_index=True)
