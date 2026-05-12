@@ -44,7 +44,7 @@ def run_scanner(stock_list):
             
             res = {"Stock": stock.replace(".NS", ""), "Price": ltp, "Change%": chg, "RSI": rsi_val}
             
-            # കണ്ടീഷനുകൾ
+            # ഇൻട്രാഡേ കണ്ടീഷനുകൾ
             if chg > 1.5 and ltp > ema_val and rsi_val > 60:
                 live_list.append(res)
             elif ltp > ema_val and 40 < rsi_val < 50:
@@ -61,7 +61,7 @@ def run_scanner(stock_list):
 # ഡിസ്‌പ്ലേ
 st.markdown('<div class="main-header"><h1>🚀 EasyCharts Pro - Intraday Master</h1></div>', unsafe_allow_html=True)
 
-# സ്റ്റോക്ക് ലിസ്റ്റ് (ഇവിടെ നിങ്ങൾക്ക് ഇഷ്ടമുള്ളത് ചേർക്കാം)
+# ഇൻട്രാഡേ വാച്ച് ലിസ്റ്റ്
 watch_list = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS", "BHARTIARTL.NS", "ITC.NS", "TATAMOTORS.NS", "WIPRO.NS", "ADANIENT.NS", "TITAN.NS"]
 
 if st.button("🔍 START MARKET SCAN"):
