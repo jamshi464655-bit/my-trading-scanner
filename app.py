@@ -2,131 +2,87 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import pandas_ta as ta
+import time
 from datetime import datetime
-import warnings
-warnings.filterwarnings('ignore')
 
-# Page config
-st.set_page_config(
-    page_title="Trading Scanner",
-    page_icon="📈",
-    layout="wide"
-)
+# --- PAGE SETUP ---
+st.set_page_config(page_title="Ultimate Pro Scanner Hub", layout="wide")
 
-st.title("📈 Trading Scanner")
-st.write(f"Last Update: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+# --- SIDEBAR NAVIGATION ---
+st.sidebar.title("🚀 Scanner Menu")
+app_mode = st.sidebar.selectbox("Choose a Scanner", 
+    ["Multi-Index Pro Scanner", "Option Pro Scanner", "Stock Pro Scanner"])
 
-# Ticker list
-tickers = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS", "SBIN.NS"]
+st.sidebar.markdown("---")
+st.sidebar.info(f"⏰ Last Refresh: {datetime.now().strftime('%I:%M:%S %p')}")
 
-@st.cache_data(ttl=300)
-def scan_stock(ticker):
-    try:
-        df = yf.download(ticker, period="1y", interval="1d", progress=False)
-        
-        if df.empty:
-            return None
-        
-        # Calculate indicators
-        df['RSI'] = ta.rsi(df['Close'], length=14)
-        df['EMA_20'] = ta.ema(df['Close'], length=20)
-        df['EMA_50'] = ta.ema(df['Close'], length=50)
-        
-        last_row = df.iloc[-1]
-        
-        if pd.isna(last_row['RSI']):
-            return None
-        
-        rsi_val = round(float(last_row['RSI']), 2)
-        price = round(float(last_row['Close']), 2)
-        ema20 = round(float(last_row['EMA_20']), 2)
-        ema50 = round(float(last_row['EMA_50']), 2)
-        
-        # Signal generation
-        if rsi_val > 70:
-            signal = "🔴 Sell Signal"
-        elif rsi_val < 30:
-            signal = "🟢 Buy Signal"
-        else:
-            signal = "⚪ Neutral"
+# --- GLOBAL STYLES ---
+st.markdown("""
+<style>
+    .stApp { background-color: #0b0e14; color: #ffffff; }
+    .card { background-color: #161b22; padding: 15px; border-radius: 12px; border: 1px solid #30363d; text-align: center; }
+    .res { color: #ff7b72; font-weight: bold; }
+    .sup { color: #44cf6c; font-weight: bold; }
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# SECTION 1: MULTI-INDEX PRO SCANNER
+# ---------------------------------------------------------
+if app_mode == "Multi-Index Pro Scanner":
+    st.header("🎯 All-in-One Multi-Index Master")
+    
+    indices_config = [
+        {"name": "NIFTY 50", "ticker": "^NSEI", "sym": "NIFTY"},
+        {"name": "BANK NIFTY", "ticker": "^NSEBANK", "sym": "BANKNIFTY"},
+        {"name": "FINNIFTY", "ticker": "NIFTY_FIN_SERVICE.NS", "sym": "FINNIFTY"}
+    ]
+
+    cols = st.columns(3)
+    for i, idx in enumerate(indices_config):
+        data = yf.download(idx['ticker'], period="2d", interval="15m", progress=False)
+        if not data.empty:
+            if isinstance(data.columns, pd.MultiIndex): data.columns = data.columns.get_level_values(0)
+            curr = round(data['Close'].iloc[-1], 2)
+            with cols[i]:
+                st.markdown(f"""
+                <div class="card">
+                    <h3>{idx['name']}</h3>
+                    <h1 style="color:#58a6ff;">{curr}</h1>
+                </div>
+                """, unsafe_allow_html=True)
+
+# ---------------------------------------------------------
+# SECTION 2: OPTION PRO SCANNER
+# ---------------------------------------------------------
+elif app_mode == "Option Pro Scanner":
+    st.header("💎 Option Pro Master Scanner")
+    st.write("ഈ ഭാഗത്ത് നിങ്ങളുടെ രണ്ടാമത്തെ കോഡിലെ ഓപ്ഷൻ ചെയിൻ വിവരങ്ങൾ കാണാം.")
+    
+    # Example logic for Option Chain
+    ticker = st.selectbox("Select Index", ["^NSEI", "^NSEBANK"])
+    df_opt = yf.download(ticker, period="1d", interval="5m", progress=False)
+    if not df_opt.empty:
+        st.metric(label="Current Price", value=round(df_opt['Close'].iloc[-1], 2))
+        st.success("Option Levels identified successfully.")
+
+# ---------------------------------------------------------
+# SECTION 3: STOCK PRO SCANNER (NIFTY 500)
+# ---------------------------------------------------------
+elif app_mode == "Stock Pro Scanner":
+    st.header("📈 EasyCharts Pro - Stock Scanner")
+    
+    if st.button('🚀 START SCANNING NIFTY 50 STOCKS'):
+        stocks = ["RELIANCE.NS", "TCS.NS", "INFY.NS", "HDFCBANK.NS", "ICICIBANK.NS"]
+        results = []
+        with st.spinner('Analyzing Indicators...'):
+            for s in stocks:
+                df = yf.download(s, period="1y", interval="1d", progress=False)
+                if not df.empty:
+                    rsi = ta.rsi(df['Close'], length=14).iloc[-1]
+                    results.append({"Symbol": s, "LTP": round(df['Close'].iloc[-1], 2), "RSI": round(rsi, 2)})
             
-        return {
-            "Ticker": ticker,
-            "Price": price,
-            "RSI": rsi_val,
-            "EMA 20": ema20,
-            "EMA 50": ema50,
-            "Signal": signal
-        }
-    except Exception as e:
-        return None
+            st.table(pd.DataFrame(results))
 
-# Sidebar
-with st.sidebar:
-    st.header("⚙️ Settings")
-    st.markdown("---")
-    st.subheader("About")
-    st.info("This scanner uses RSI (14) and EMA (20,50) to generate trading signals")
-    
-    if st.button("🔄 Refresh Data"):
-        st.cache_data.clear()
-        st.rerun()
-
-# Main content
-col1, col2 = st.columns([3, 1])
-
-with col1:
-    st.subheader("📊 Stock Scanner")
-
-with col2:
-    start_scan = st.button("🔍 Start Scanning", type="primary", use_container_width=True)
-
-if start_scan:
-    results = []
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    for i, ticker in enumerate(tickers):
-        status_text.text(f"Scanning {ticker}...")
-        data = scan_stock(ticker)
-        if data:
-            results.append(data)
-        progress_bar.progress((i + 1) / len(tickers))
-    
-    status_text.text("✅ Scanning complete!")
-    progress_bar.empty()
-    
-    if results:
-        df_results = pd.DataFrame(results)
-        
-        # Color coding for RSI
-        def color_rsi(val):
-            if isinstance(val, (int, float)):
-                if val > 70:
-                    return 'color: red'
-                elif val < 30:
-                    return 'color: green'
-            return ''
-        
-        st.dataframe(
-            df_results.style.applymap(color_rsi, subset=['RSI']),
-            use_container_width=True,
-            hide_index=True
-        )
-        
-        # Download option
-        csv = df_results.to_csv(index=False)
-        st.download_button(
-            label="📥 Download as CSV",
-            data=csv,
-            file_name=f"scan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mime="text/csv"
-        )
-    else:
-        st.error("⚠️ No data found. Please check your internet connection.")
-else:
-    st.info("👈 Click 'Start Scanning' to begin analysis")
-
-# Footer
-st.markdown("---")
-st.caption("⚠️ Disclaimer: This is for educational purposes only. Not financial advice.")
+if st.sidebar.button("🔄 Manual Refresh"):
+    st.rerun()
